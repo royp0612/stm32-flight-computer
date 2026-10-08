@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "imu.h"
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -65,7 +67,12 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+static void print_hex(const char *label, uint8_t value)
+{
+    char msg[48];
+    int n = snprintf(msg, sizeof msg, "%s = 0x%02X\r\n", label, value);
+    HAL_UART_Transmit(&huart2, (uint8_t *)msg, n, 100);
+}
 /* USER CODE END 0 */
 
 /**
@@ -100,7 +107,12 @@ int main(void)
   MX_SPI1_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  __HAL_SPI_ENABLE(&hspi1);
+  uint8_t id = imu_read_reg(0x0F);
+  print_hex("WHO_AM_I (expect 0x6C)",id);
+  imu_write_reg(0x10, 0x40);
+  uint8_t check = imu_read_reg(0x10);
+  print_hex("EXPECT 0x40",check);
   /* USER CODE END 2 */
   /* Initialize leds */
   BSP_LED_Init(LED2);
