@@ -34,11 +34,13 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 
 /* Button state */
+
 #define BUTTON_RELEASED                    0U
 #define BUTTON_PRESSED                     1U
 /* USER CODE BEGIN PM */
@@ -53,7 +55,11 @@ SPI_HandleTypeDef hspi1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+static imu_data_t imu_data;
+static imu_status_t imu_status;
 
+static char uart_buf[200];
+static uint32_t imu_error_count = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -67,12 +73,15 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-static void print_hex(const char *label, uint8_t value)
+
+static void uart_print(const char *message)
 {
-    char msg[48];
-    int n = snprintf(msg, sizeof msg, "%s = 0x%02X\r\n", label, value);
-    HAL_UART_Transmit(&huart2, (uint8_t *)msg, n, 100);
+    HAL_UART_Transmit(&huart2,
+                      (uint8_t *)message,
+                      (uint16_t)strlen(message),
+                      100);
 }
+
 /* USER CODE END 0 */
 
 /**
@@ -81,73 +90,105 @@ static void print_hex(const char *label, uint8_t value)
   */
 int main(void)
 {
+    /* USER CODE BEGIN 1 */
 
-  /* USER CODE BEGIN 1 */
+    /* USER CODE END 1 */
 
-  /* USER CODE END 1 */
+    HAL_Init();
 
-  /* MCU Configuration--------------------------------------------------------*/
+    /* USER CODE BEGIN Init */
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+    /* USER CODE END Init */
 
-  /* USER CODE BEGIN Init */
+    SystemClock_Config();
 
-  /* USER CODE END Init */
+    /* USER CODE BEGIN SysInit */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+    /* USER CODE END SysInit */
 
-  /* USER CODE BEGIN SysInit */
+    MX_GPIO_Init();
+    MX_SPI1_Init();
+    MX_USART2_UART_Init();
 
-  /* USER CODE END SysInit */
+    /* USER CODE BEGIN 2 */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_SPI1_Init();
-  MX_USART2_UART_Init();
-  /* USER CODE BEGIN 2 */
-  __HAL_SPI_ENABLE(&hspi1);
-  uint8_t id = imu_read_reg(0x0F);
-  print_hex("WHO_AM_I (expect 0x6C)",id);
-  imu_write_reg(0x10, 0x40);
-  uint8_t check = imu_read_reg(0x10);
-  print_hex("EXPECT 0x40",check);
-  /* USER CODE END 2 */
-  /* Initialize leds */
-  BSP_LED_Init(LED2);
+    uart_print("Flight computer starting...\r\n");
 
-  /* Initialize USER push-button, will be used to trigger an interrupt each time it's pressed.*/
-  BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
+    imu_status = imu_init();
 
-  /* USER CODE BEGIN BSP */
-
-  /* -- Sample board code to switch on leds ---- */
-  BSP_LED_On(LED2);
-
-  /* USER CODE END BSP */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-
-    /* -- Sample board code for User push-button in interrupt mode ---- */
-    if (BspButtonState == BUTTON_PRESSED)
+    if (imu_status != IMU_OK)
     {
-      /* Update button state */
-      BspButtonState = BUTTON_RELEASED;
-      /* -- Sample board code to toggle leds ---- */
-      BSP_LED_Toggle(LED2);
-      /* ..... Perform your action ..... */
+        snprintf(uart_buf, sizeof(uart_buf),
+                 "IMU initialization failed: %d\r\n",
+                 (int)imu_status);
+
+        uart_print(uart_buf);
+
+        Error_Handler();
     }
-    /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+    uart_print("IMU initialized successfully\r\n");
+
+    /* USER CODE END 2 */
+
+    BSP_LED_Init(LED2);
+
+    BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
+
+    /* USER CODE BEGIN BSP */
+
+    BSP_LED_On(LED2);
+
+    /* USER CODE END BSP */
+
+    /* USER CODE BEGIN WHILE */
+
+    while (1)
+    {
+        if (BspButtonState == BUTTON_PRESSED)
+        {
+            BspButtonState = BUTTON_RELEASED;
+
+            BSP_LED_Toggle(LED2);
+        }
+
+        /* USER CODE END WHILE */
+
+        /* USER CODE BEGIN 3 */
+
+        imu_status = imu_read(&imu_data);
+
+        if (imu_status == IMU_OK)
+        {
+            snprintf(uart_buf, sizeof(uart_buf),
+                     "GX: %.3f GY: %.3f GZ: %.3f | "
+                     "AX: %.3f AY: %.3f AZ: %.3f\r\n",
+                     imu_data.gx,
+                     imu_data.gy,
+                     imu_data.gz,
+                     imu_data.ax,
+                     imu_data.ay,
+                     imu_data.az);
+
+            uart_print(uart_buf);
+        }
+        else
+        {
+            imu_error_count++;
+
+            snprintf(uart_buf, sizeof(uart_buf),
+                     "IMU read failed: %d | Errors: %lu\r\n",
+                     (int)imu_status,
+                     (unsigned long)imu_error_count);
+
+            uart_print(uart_buf);
+        }
+
+        HAL_Delay(100);
+    }
+
+    /* USER CODE END 3 */
 }
-
 /**
   * @brief System Clock Configuration
   * @retval None
