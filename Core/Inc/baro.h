@@ -21,6 +21,15 @@ typedef enum
 } baro_status_t;
 
 
+typedef struct
+{
+    float pressure;       /* Pa */
+    float temperature;    /* Celsius */
+    float altitude;       /* Metres */
+
+} baro_data_t;
+
+
 baro_status_t baro_read_reg(uint8_t reg,
                            uint8_t *value);
 
@@ -30,5 +39,9 @@ baro_status_t baro_write_reg(uint8_t reg,
 baro_status_t baro_burst_read(uint8_t start_reg,
                              uint8_t *buf,
                              uint8_t len);
+
+baro_status_t baro_init(void);
+
+baro_status_t baro_read(baro_data_t *out);
 
 #endif
