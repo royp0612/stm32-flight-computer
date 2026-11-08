@@ -1,4 +1,14 @@
+# Unit test executables
+test_imu.exe
+test_baro.exe
+test_imu
+test_baro
+
+# Build artifacts
 Debug/
 Release/
-.settings/
-*.launch
+*.o
+*.elf
+*.map
+*.bin
+*.hex
