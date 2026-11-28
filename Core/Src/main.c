@@ -24,6 +24,7 @@
 #include "imu.h"
 #include "baro.h"
 #include "flash.h"
+#include "benchmark.h"
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -199,8 +200,79 @@ int main(void)
 
       snprintf(uart_buf, sizeof(uart_buf), "FLASH FINAL STATUS: %d\r\n", (int)flash_status);
       uart_print(uart_buf);
+
+  }
+  benchmark_init();
+
+  const uint32_t iterations = 1000;
+
+  uint32_t min_cycles = UINT32_MAX;
+  uint32_t max_cycles = 0;
+  uint64_t total_cycles = 0;
+
+  uint32_t failures = 0;
+
+  for (uint32_t i = 0; i < iterations; i++)
+  {
+      uint32_t start = benchmark_get_cycles();
+
+      imu_status = imu_read(&imu_data);
+
+      uint32_t elapsed =
+          benchmark_get_cycles() - start;
+
+      if (imu_status != IMU_OK)
+      {
+          failures++;
+          continue;
+      }
+
+      total_cycles += elapsed;
+
+      if (elapsed < min_cycles)
+          min_cycles = elapsed;
+
+      if (elapsed > max_cycles)
+          max_cycles = elapsed;
   }
 
+  uint32_t successful = iterations - failures;
+
+  if (successful > 0)
+  {
+      uint32_t avg_cycles =
+          (uint32_t)(total_cycles / successful);
+
+      uart_print("\r\n--- IMU POLLING BENCHMARK ---\r\n");
+
+      snprintf(uart_buf, sizeof(uart_buf),
+               "Iterations: %lu | Failures: %lu\r\n",
+               (unsigned long)iterations,
+               (unsigned long)failures);
+      uart_print(uart_buf);
+
+      snprintf(uart_buf, sizeof(uart_buf),
+               "Average: %lu cycles | %.2f us\r\n",
+               (unsigned long)avg_cycles,
+               benchmark_cycles_to_us(avg_cycles));
+      uart_print(uart_buf);
+
+      snprintf(uart_buf, sizeof(uart_buf),
+               "Minimum: %lu cycles | %.2f us\r\n",
+               (unsigned long)min_cycles,
+               benchmark_cycles_to_us(min_cycles));
+      uart_print(uart_buf);
+
+      snprintf(uart_buf, sizeof(uart_buf),
+               "Maximum: %lu cycles | %.2f us\r\n",
+               (unsigned long)max_cycles,
+               benchmark_cycles_to_us(max_cycles));
+      uart_print(uart_buf);
+  }
+  else
+  {
+      uart_print("BENCHMARK FAILED\r\n");
+  }
   /* USER CODE END 2 */
 
   /* Initialize USER push-button, will be used to trigger an interrupt each time it's pressed.*/
