@@ -4,7 +4,7 @@
 #include "spi_bus.h"
 
 #define MOCK_MAX_TRANSACTIONS 64U
-#define MOCK_MAX_DATA 256U
+#define MOCK_MAX_DATA 260U
 
 typedef struct
 {
@@ -36,7 +36,7 @@ int mock_spi_queue_response(spi_bus_status_t status,
 /* Most recent transaction */
 
 extern spi_device_t mock_last_device;
-extern uint8_t mock_last_tx[256];
+extern uint8_t mock_last_tx[MOCK_MAX_DATA];
 extern uint16_t mock_last_tx_len;
 extern uint16_t mock_last_rx_len;
 extern uint32_t mock_call_count;

@@ -3,6 +3,7 @@ test_imu.exe
 test_baro.exe
 test_imu
 test_baro
+/tests/build/
 
 # Build artifacts
 Debug/

@@ -22,6 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "imu.h"
+#include "baro.h"
+#include "flash.h"
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
@@ -34,13 +36,11 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 
 /* Button state */
-
 #define BUTTON_RELEASED                    0U
 #define BUTTON_PRESSED                     1U
 /* USER CODE BEGIN PM */
@@ -60,13 +60,16 @@ static imu_status_t imu_status;
 
 static char uart_buf[200];
 static uint32_t imu_error_count = 0;
+static baro_data_t baro_data;
+static baro_status_t baro_status;
+static uint8_t baro_ready = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_SPI1_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -90,105 +93,180 @@ static void uart_print(const char *message)
   */
 int main(void)
 {
-    /* USER CODE BEGIN 1 */
 
-    /* USER CODE END 1 */
+  /* USER CODE BEGIN 1 */
 
-    HAL_Init();
+  /* USER CODE END 1 */
 
-    /* USER CODE BEGIN Init */
+  /* MCU Configuration--------------------------------------------------------*/
 
-    /* USER CODE END Init */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-    SystemClock_Config();
+  /* USER CODE BEGIN Init */
 
-    /* USER CODE BEGIN SysInit */
+  /* USER CODE END Init */
 
-    /* USER CODE END SysInit */
+  /* Configure the system clock */
+  SystemClock_Config();
 
-    MX_GPIO_Init();
-    MX_SPI1_Init();
-    MX_USART2_UART_Init();
+  /* USER CODE BEGIN SysInit */
 
-    /* USER CODE BEGIN 2 */
+  /* USER CODE END SysInit */
 
-    uart_print("Flight computer starting...\r\n");
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_USART2_UART_Init();
+  MX_SPI1_Init();
+  /* USER CODE BEGIN 2 */
 
-    imu_status = imu_init();
+  /* Enable SPI so SCK idles high (SPI mode 3) */
+  __HAL_SPI_ENABLE(&hspi1);
+  HAL_Delay(10);
 
-    if (imu_status != IMU_OK)
-    {
-        snprintf(uart_buf, sizeof(uart_buf),
-                 "IMU initialization failed: %d\r\n",
-                 (int)imu_status);
+  uart_print("\r\nBoot OK\r\n");
 
-        uart_print(uart_buf);
+  /* ---------- IMU ---------- */
+  imu_status = imu_init();
+  if (imu_status == IMU_OK)
+  {
+      uart_print("IMU OK\r\n");
+  }
+  else
+  {
+      snprintf(uart_buf, sizeof(uart_buf), "IMU init failed: %d\r\n", (int)imu_status);
+      uart_print(uart_buf);
+  }
 
-        Error_Handler();
-    }
+  /* ---------- Barometer ---------- */
+  uint8_t baro_id = 0;
+  baro_status = baro_read_reg(0x00, &baro_id);
+  snprintf(uart_buf, sizeof(uart_buf), "BARO ID: 0x%02X, Status: %d\r\n",
+           (unsigned int)baro_id, (int)baro_status);
+  uart_print(uart_buf);
 
-    uart_print("IMU initialized successfully\r\n");
+  baro_status = baro_init();
+  if (baro_status == BARO_OK)
+  {
+      baro_ready = 1;
+      uart_print("BARO OK\r\n");
+  }
+  else
+  {
+      snprintf(uart_buf, sizeof(uart_buf), "BARO init failed: %d\r\n", (int)baro_status);
+      uart_print(uart_buf);
+  }
 
-    /* USER CODE END 2 */
+  /* ---------- Flash: run ONCE at startup ---------- */
+  {
+      uint8_t flash_id[3] = {0};
+      uint32_t test_address = 0xFFF000U;   /* last 4 KB sector */
+      uint8_t write_data[8] = { 0x12, 0x34, 0x56, 0x78, 0xAA, 0xBB, 0xCC, 0xDD };
+      uint8_t read_data[8]  = {0};
+      flash_status_t flash_status;
 
-    BSP_LED_Init(LED2);
+      flash_status = flash_init();          /* reset + ID check + wait ready */
+      flash_read_id(flash_id);
+      snprintf(uart_buf, sizeof(uart_buf), "FLASH ID: %02X %02X %02X | Init: %d\r\n",
+               (unsigned int)flash_id[0], (unsigned int)flash_id[1],
+               (unsigned int)flash_id[2], (int)flash_status);
+      uart_print(uart_buf);
 
-    BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
+      if (flash_status == FLASH_OK)
+      {
+          flash_status = flash_sector_erase(test_address);
+          uart_print(flash_status == FLASH_OK ? "FLASH ERASE OK\r\n" : "FLASH ERASE FAILED\r\n");
+      }
 
-    /* USER CODE BEGIN BSP */
+      if (flash_status == FLASH_OK)
+      {
+          flash_status = flash_page_program(test_address, write_data, sizeof(write_data));
+          uart_print(flash_status == FLASH_OK ? "FLASH PROGRAM OK\r\n" : "FLASH PROGRAM FAILED\r\n");
+      }
 
-    BSP_LED_On(LED2);
+      if (flash_status == FLASH_OK)
+      {
+          flash_status = flash_read(test_address, read_data, sizeof(read_data));
+          if (flash_status == FLASH_OK && memcmp(write_data, read_data, sizeof(write_data)) == 0)
+          {
+              uart_print("FLASH READBACK PASS\r\n");
+          }
+          else
+          {
+              uart_print("FLASH READBACK FAILED\r\n");
+          }
+      }
 
-    /* USER CODE END BSP */
+      snprintf(uart_buf, sizeof(uart_buf), "FLASH FINAL STATUS: %d\r\n", (int)flash_status);
+      uart_print(uart_buf);
+  }
 
-    /* USER CODE BEGIN WHILE */
+  /* USER CODE END 2 */
+
+  /* Initialize USER push-button, will be used to trigger an interrupt each time it's pressed.*/
+  BSP_PB_Init(BUTTON_USER, BUTTON_MODE_EXTI);
+
+  /* USER CODE BEGIN BSP */
+
+  /* USER CODE END BSP */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 
     while (1)
     {
         if (BspButtonState == BUTTON_PRESSED)
         {
             BspButtonState = BUTTON_RELEASED;
-
-            BSP_LED_Toggle(LED2);
+            uart_print("Button pressed\r\n");
         }
 
-        /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-        /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 
+        /* IMU */
         imu_status = imu_read(&imu_data);
-
         if (imu_status == IMU_OK)
         {
             snprintf(uart_buf, sizeof(uart_buf),
-                     "GX: %.3f GY: %.3f GZ: %.3f | "
-                     "AX: %.3f AY: %.3f AZ: %.3f\r\n",
-                     imu_data.gx,
-                     imu_data.gy,
-                     imu_data.gz,
-                     imu_data.ax,
-                     imu_data.ay,
-                     imu_data.az);
-
+                     "GX: %.3f GY: %.3f GZ: %.3f | AX: %.3f AY: %.3f AZ: %.3f\r\n",
+                     imu_data.gx, imu_data.gy, imu_data.gz,
+                     imu_data.ax, imu_data.ay, imu_data.az);
             uart_print(uart_buf);
         }
         else
         {
             imu_error_count++;
-
-            snprintf(uart_buf, sizeof(uart_buf),
-                     "IMU read failed: %d | Errors: %lu\r\n",
-                     (int)imu_status,
-                     (unsigned long)imu_error_count);
-
+            snprintf(uart_buf, sizeof(uart_buf), "IMU read failed: %d | Errors: %lu\r\n",
+                     (int)imu_status, (unsigned long)imu_error_count);
             uart_print(uart_buf);
+        }
+
+        /* Barometer */
+        if (baro_ready)
+        {
+            baro_status = baro_read(&baro_data);
+            if (baro_status == BARO_OK)
+            {
+                snprintf(uart_buf, sizeof(uart_buf),
+                         "Pressure: %.2f Pa | Temp: %.2f C | Altitude: %.2f m\r\n",
+                         baro_data.pressure, baro_data.temperature, baro_data.altitude);
+                uart_print(uart_buf);
+            }
+            else if (baro_status != BARO_ERR_NOT_READY)
+            {
+                snprintf(uart_buf, sizeof(uart_buf), "BARO read failed: %d\r\n", (int)baro_status);
+                uart_print(uart_buf);
+            }
         }
 
         HAL_Delay(100);
     }
 
-    /* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
+
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -259,7 +337,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
   hspi1.Init.CLKPhase = SPI_PHASE_2EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;   /* 84 MHz / 64 = 1.3 MHz */
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;

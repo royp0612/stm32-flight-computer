@@ -77,24 +77,18 @@ spi_bus_status_t spi_bus_write_read(
     uint8_t *rx,
     uint16_t rx_len)
 {
-    // 1. Validate all arguments
 	if (!spi_valid_device(device) ||
 	    tx == NULL || tx_len == 0 ||
 	    rx == NULL || rx_len == 0)
 	{
 	    return SPI_BUS_INVALID_ARG;
 	}
-    // 2. Pull CS LOW
 	spi_set_cs(device, GPIO_PIN_RESET);
-    // 3. Transmit command
 	HAL_StatusTypeDef status = HAL_SPI_Transmit(&hspi1, (uint8_t *)tx, tx_len,
 	                          SPI_BUS_TIMEOUT_MS);
-    // 4. If transmission succeeded, receive data
 	if (status == HAL_OK){
 		status = HAL_SPI_Receive(&hspi1, rx, rx_len,SPI_BUS_TIMEOUT_MS);
 	}
-    // 5. Pull CS HIGH
 	spi_set_cs(device, GPIO_PIN_SET);
-    // 6. Convert and return status
 	return spi_check_status(status);
 }

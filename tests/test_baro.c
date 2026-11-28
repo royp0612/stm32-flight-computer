@@ -154,7 +154,7 @@ void test_baro_read_register_sets_read_bit(void)
     uint8_t response[2] = {0x00, 0x50};
     uint8_t value = 0;
 
-    mock_spi_set_rx_data(response, 2);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_OK, response, 2));
 
     baro_status_t status =
         baro_read_reg(0x00, &value);
@@ -182,7 +182,7 @@ void test_baro_read_discards_dummy_byte(void)
     uint8_t response[2] = {0xFF, 0x50};
     uint8_t value = 0;
 
-    mock_spi_set_rx_data(response, 2);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_OK, response, 2));
 
     TEST_ASSERT_EQUAL_INT(
         BARO_OK, baro_read_reg(0x00, &value));
@@ -195,6 +195,8 @@ void test_baro_read_discards_dummy_byte(void)
 
 void test_baro_write_register_clears_read_bit(void)
 {
+    queue_successful_write();
+
     baro_status_t status =
         baro_write_reg(0x9C, 0x03);
 
@@ -233,7 +235,7 @@ void test_baro_burst_read_discards_dummy_byte(void)
 
     uint8_t buf[6] = {0};
 
-    mock_spi_set_rx_data(response, 7);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_OK, response, 7));
 
     TEST_ASSERT_EQUAL_INT(
         BARO_OK, baro_burst_read(0x04, buf, 6));
@@ -286,7 +288,7 @@ void test_baro_init_rejects_wrong_chip_id(void)
 {
     uint8_t response[2] = {0x00, 0xFF};
 
-    mock_spi_set_rx_data(response, 2);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_OK, response, 2));
 
     TEST_ASSERT_EQUAL_INT(
         BARO_ERR_DEVICE_ID, baro_init());
@@ -305,25 +307,22 @@ void test_baro_propagates_spi_errors(void)
 {
     uint8_t value = 0;
 
-    mock_spi_set_status(SPI_BUS_TIMEOUT);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_TIMEOUT, NULL, 0));
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_BUSY, NULL, 0));
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_ERR, NULL, 0));
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_INVALID_ARG, NULL, 0));
 
     TEST_ASSERT_EQUAL_INT(
         BARO_ERR_TIMEOUT,
         baro_read_reg(0x00, &value));
 
-    mock_spi_set_status(SPI_BUS_BUSY);
-
     TEST_ASSERT_EQUAL_INT(
         BARO_ERR_BUSY,
         baro_read_reg(0x00, &value));
 
-    mock_spi_set_status(SPI_BUS_ERR);
-
     TEST_ASSERT_EQUAL_INT(
         BARO_ERR_SPI,
         baro_read_reg(0x00, &value));
-
-    mock_spi_set_status(SPI_BUS_INVALID_ARG);
 
     TEST_ASSERT_EQUAL_INT(
         BARO_ERR_INVALID_ARG,
@@ -343,7 +342,8 @@ void test_baro_read_failure_preserves_data(void)
     uint8_t expected[3] =
         {0x11, 0x22, 0x33};
 
-    mock_spi_set_status(SPI_BUS_TIMEOUT);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_TIMEOUT, NULL, 0));
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_TIMEOUT, NULL, 0));
 
     TEST_ASSERT_EQUAL_INT(
         BARO_ERR_TIMEOUT,

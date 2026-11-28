@@ -19,33 +19,5 @@ jobs:
       - name: Check GCC version
         run: gcc --version
 
-      - name: Build IMU tests
-        run: |
-          gcc -std=c11 -Wall -Wextra -Werror \
-            -ICore/Inc \
-            -Itests/unity \
-            -Itests/mocks \
-            Core/Src/imu.c \
-            tests/mocks/mock_spi_bus.c \
-            tests/unity/unity.c \
-            tests/test_imu.c \
-            -o test_imu
-
-      - name: Run IMU tests
-        run: ./test_imu
-
-      - name: Build barometer tests
-        run: |
-          gcc -std=c11 -Wall -Wextra -Werror \
-            -ICore/Inc \
-            -Itests/unity \
-            -Itests/mocks \
-            Core/Src/baro.c \
-            tests/mocks/mock_spi_bus.c \
-            tests/mocks/mock_platform.c \
-            tests/unity/unity.c \
-            tests/test_baro.c \
-            -o test_baro -lm
-
-      - name: Run barometer tests
-        run: ./test_baro
+      - name: Build and run unit tests
+        run: make test

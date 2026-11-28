@@ -14,7 +14,7 @@ static uint16_t mock_rx_data_len;
 /* Most recent transaction */
 
 spi_device_t mock_last_device;
-uint8_t mock_last_tx[256];
+uint8_t mock_last_tx[MOCK_MAX_DATA];
 uint16_t mock_last_tx_len;
 uint16_t mock_last_rx_len;
 uint32_t mock_call_count;

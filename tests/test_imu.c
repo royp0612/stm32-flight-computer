@@ -16,7 +16,7 @@ void test_imu_read_register(void)
     uint8_t expected = 0x6C;
     uint8_t value = 0;
 
-    mock_spi_set_rx_data(&expected, 1);
+    TEST_ASSERT_TRUE(mock_spi_queue_response(SPI_BUS_OK, &expected, 1));
 
     imu_status_t status = imu_read_reg(0x0F, &value);
 

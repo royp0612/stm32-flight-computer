@@ -116,7 +116,6 @@ imu_status_t imu_init(void)
     uint8_t id;
     imu_status_t status;
 
-    /* Verify device identification */
     status = imu_read_reg(IMU_REG_WHO_AM_I, &id);
 
     if (status != IMU_OK)
@@ -129,7 +128,6 @@ imu_status_t imu_init(void)
         return IMU_ERR_DEVICE_ID;
     }
 
-    /* Enable block data update and address increment */
     status = imu_write_reg(IMU_REG_CTRL3_C,
                            IMU_CTRL3_C_BDU |
                            IMU_CTRL3_C_IF_INC);
@@ -139,7 +137,6 @@ imu_status_t imu_init(void)
         return status;
     }
 
-    /* Configure accelerometer: 416 Hz, +/-2g */
     status = imu_write_reg(IMU_REG_CTRL1_XL,
                            IMU_CTRL1_XL_416HZ_2G);
 
@@ -148,7 +145,6 @@ imu_status_t imu_init(void)
         return status;
     }
 
-    /* Configure gyroscope: 416 Hz, +/-500 dps */
     status = imu_write_reg(IMU_REG_CTRL2_G,
                            IMU_CTRL2_G_ODR_416HZ |
                            IMU_CTRL2_G_FS_500DPS);
@@ -161,8 +157,6 @@ imu_status_t imu_init(void)
     return IMU_OK;
 }
 
-
-/* Read and convert IMU sensor data */
 imu_status_t imu_read(imu_data_t *out)
 {
     if (out == NULL)
@@ -179,13 +173,9 @@ imu_status_t imu_read(imu_data_t *out)
     {
         return status;
     }
-
-    /* Combine gyroscope bytes */
     int16_t gx = (int16_t)((buf[1] << 8) | buf[0]);
     int16_t gy = (int16_t)((buf[3] << 8) | buf[2]);
     int16_t gz = (int16_t)((buf[5] << 8) | buf[4]);
-
-    /* Combine accelerometer bytes */
     int16_t ax = (int16_t)((buf[7] << 8) | buf[6]);
     int16_t ay = (int16_t)((buf[9] << 8) | buf[8]);
     int16_t az = (int16_t)((buf[11] << 8) | buf[10]);
